@@ -1,0 +1,659 @@
+<html><head><base href="." /><title>AudioDataVisualizer</title><style>
+body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.visualizer-container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 20px;
+    padding: 20px;
+    height: 90vh;
+}
+
+.viz-box {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0,255,255,0.3);
+    border-radius: 10px;
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.viz-title {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 14px;
+    z-index: 1;
+}
+
+.waveform {
+    width: 100%;
+    height: 100%;
+}
+
+.circle-viz {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.spectrum {
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+    gap: 2px;
+}
+
+.spectrum-bar {
+    flex: 1;
+    background: linear-gradient(to top, #00ff94, #00e5ff);
+    transition: height 0.05s ease;
+}
+
+#startBtn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(45deg, #00ff94, #00e5ff);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 25px;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 100;
+}
+
+.key-display {
+    font-size: 24px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+</style></head><body>
+<button id="startBtn">Start Analysis</button>
+<div class="visualizer-container">
+    <div class="viz-box">
+        <div class="viz-title">Waveform</div>
+        <canvas id="waveformCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Frequency Spectrum</div>
+        <div id="spectrum" class="spectrum"></div>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Beat Detection</div>
+        <canvas id="beatCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Pitch Circle</div>
+        <div class="circle-viz">
+            <canvas id="pitchCanvas"></canvas>
+        </div>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Volume Levels</div>
+        <canvas id="volumeCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Spectral Centroid</div>
+        <canvas id="centroidCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Key Detection</div>
+        <div class="key-display" id="keyDisplay"></div>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Rhythm Pattern</div>
+        <canvas id="rhythmCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Harmonic Content</div>
+        <canvas id="harmonicCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Energy Distribution</div>
+        <canvas id="energyCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Tempo Analysis</div>
+        <canvas id="tempoCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Dynamic Range</div>
+        <canvas id="dynamicCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Phase Correlation</div>
+        <canvas id="phaseCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Stereo Field</div>
+        <canvas id="stereoCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Frequency Velocity</div>
+        <canvas id="velocityCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Harmonic Flow</div>
+        <canvas id="flowCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Spectral Cascade</div>
+        <canvas id="cascadeCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Timbral Space</div>
+        <canvas id="timbralCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Attack Transients</div>
+        <canvas id="attackCanvas"></canvas>
+    </div>
+    <div class="viz-box">
+        <div class="viz-title">Amplitude Modulation</div>
+        <canvas id="modulationCanvas"></canvas>
+    </div>
+</div>
+
+<script>
+let audioContext;
+let analyser;
+let microphone;
+let isRunning = false;
+const FPS = 60;
+const frameInterval = 1000 / FPS;
+let lastFrameTime = 0;
+
+// Create spectrum bars
+const spectrumContainer = document.getElementById('spectrum');
+const BARS = 32;
+for (let i = 0; i < BARS; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'spectrum-bar';
+    spectrumContainer.appendChild(bar);
+}
+
+// Initialize all canvases
+const canvasIds = ['waveformCanvas', 'beatCanvas', 'pitchCanvas', 'volumeCanvas', 
+                   'centroidCanvas', 'rhythmCanvas', 'harmonicCanvas', 'energyCanvas', 
+                   'tempoCanvas', 'dynamicCanvas', 'phaseCanvas', 'stereoCanvas',
+                   'velocityCanvas', 'flowCanvas', 'cascadeCanvas', 'timbralCanvas',
+                   'attackCanvas', 'modulationCanvas'];
+const canvases = {};
+const contexts = {};
+
+canvasIds.forEach(id => {
+    canvases[id] = document.getElementById(id);
+    contexts[id] = canvases[id].getContext('2d');
+    resizeCanvas(canvases[id]);
+});
+
+function resizeCanvas(canvas) {
+    const container = canvas.parentElement;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+}
+
+window.addEventListener('resize', () => {
+    canvasIds.forEach(id => resizeCanvas(canvases[id]));
+});
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+    if (isRunning) {
+        stopAnalysis();
+    } else {
+        await startAnalysis();
+    }
+});
+
+async function startAnalysis() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        
+        isRunning = true;
+        document.getElementById('startBtn').textContent = 'Stop Analysis';
+        requestAnimationFrame(analyze);
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+    }
+}
+
+function stopAnalysis() {
+    if (microphone) {
+        microphone.disconnect();
+    }
+    if (audioContext) {
+        audioContext.close();
+    }
+    isRunning = false;
+    document.getElementById('startBtn').textContent = 'Start Analysis';
+}
+
+function analyze(timestamp) {
+    if (!isRunning) return;
+    
+    if (timestamp - lastFrameTime < frameInterval) {
+        requestAnimationFrame(analyze);
+        return;
+    }
+    
+    lastFrameTime = timestamp;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const timeDataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(dataArray);
+    analyser.getByteTimeDomainData(timeDataArray);
+
+    // Update spectrum bars
+    const spectrumBars = document.getElementsByClassName('spectrum-bar');
+    for (let i = 0; i < BARS; i++) {
+        const value = dataArray[i * 2];
+        const height = (value / 255) * 100;
+        spectrumBars[i].style.height = height + '%';
+    }
+
+    // Draw waveform
+    drawWaveform(contexts.waveformCanvas, timeDataArray);
+    
+    // Draw beat detection
+    drawBeat(contexts.beatCanvas, dataArray);
+    
+    // Draw pitch visualization
+    drawPitch(contexts.pitchCanvas, dataArray);
+    
+    // Draw volume levels
+    drawVolume(contexts.volumeCanvas, timeDataArray);
+    
+    // Update key detection
+    updateKeyDisplay(dataArray);
+    
+    // Draw other visualizations
+    drawCentroid(contexts.centroidCanvas, dataArray);
+    drawRhythm(contexts.rhythmCanvas, timeDataArray);
+    drawHarmonics(contexts.harmonicCanvas, dataArray);
+    drawEnergy(contexts.energyCanvas, dataArray);
+    drawTempo(contexts.tempoCanvas, dataArray);
+    drawDynamics(contexts.dynamicCanvas, timeDataArray);
+    
+    // New visualizations
+    drawPhase(contexts.phaseCanvas, timeDataArray);
+    drawStereo(contexts.stereoCanvas, dataArray);
+    drawVelocity(contexts.velocityCanvas, dataArray);
+    drawHarmonicFlow(contexts.flowCanvas, dataArray);
+    drawSpectralCascade(contexts.cascadeCanvas, dataArray);
+    drawTimbral(contexts.timbralCanvas, dataArray);
+    drawAttackTransients(contexts.attackCanvas, timeDataArray);
+    drawAmplitudeModulation(contexts.modulationCanvas, timeDataArray);
+
+    requestAnimationFrame(analyze);
+}
+
+function drawWaveform(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    ctx.beginPath();
+    ctx.strokeStyle = '#00ff94';
+    ctx.lineWidth = 2;
+    
+    const sliceWidth = width / data.length;
+    let x = 0;
+    
+    for (let i = 0; i < data.length; i++) {
+        const v = data[i] / 128.0;
+        const y = (v * height) / 2;
+        
+        if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+        x += sliceWidth;
+    }
+    
+    ctx.stroke();
+}
+
+function drawBeat(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const bassEnergy = data.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
+    const radius = (bassEnergy / 255) * Math.min(width, height) / 2;
+    
+    ctx.beginPath();
+    ctx.arc(width/2, height/2, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 255, 148, ${bassEnergy/255})`;
+    ctx.fill();
+}
+
+function drawPitch(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const maxRadius = Math.min(width, height) / 2;
+    
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const value = data[i * 4] / 255;
+        const radius = value * maxRadius;
+        
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${i * 30}, 100%, 50%)`;
+        ctx.fill();
+    }
+}
+
+function drawVolume(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const rms = Math.sqrt(data.reduce((acc, val) => acc + (val * val), 0) / data.length);
+    const volume = rms / 128.0;
+    
+    ctx.fillStyle = `hsl(${volume * 120}, 100%, 50%)`;
+    ctx.fillRect(0, height - (volume * height), width, volume * height);
+}
+
+function updateKeyDisplay(data) {
+    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const maxEnergy = Math.max(...Array.from(data.slice(0, 12)));
+    const keyIndex = Array.from(data.slice(0, 12)).indexOf(maxEnergy);
+    
+    document.getElementById('keyDisplay').textContent = notes[keyIndex];
+}
+
+// New visualization functions
+function drawPhase(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const phaseData = new Float32Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+        phaseData[i] = Math.atan2(data[i] - 128, i);
+    }
+    
+    ctx.beginPath();
+    ctx.strokeStyle = '#00ff94';
+    for (let i = 0; i < phaseData.length; i++) {
+        const x = (i / phaseData.length) * width;
+        const y = height/2 + Math.sin(phaseData[i]) * height/3;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+function drawStereo(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const centerY = height / 2;
+    const radius = Math.min(width, height) / 4;
+    
+    for (let i = 0; i < data.length; i += 2) {
+        const angle = (i / data.length) * Math.PI * 2;
+        const value = data[i] / 255;
+        
+        ctx.beginPath();
+        ctx.arc(width/2, centerY, radius * value, angle, angle + 0.1);
+        ctx.strokeStyle = `hsl(${i}, 100%, 50%)`;
+        ctx.stroke();
+    }
+}
+
+function drawVelocity(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const particles = [];
+    for (let i = 0; i < 20; i++) {
+        const value = data[i * 4] / 255;
+        particles.push({
+            x: width/2 + Math.cos(i) * value * width/3,
+            y: height/2 + Math.sin(i) * value * height/3,
+            size: value * 10
+        });
+    }
+    
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ff94';
+        ctx.fill();
+    });
+}
+
+function drawHarmonicFlow(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const step = Math.PI * 2 / 50;
+    for (let i = 0; i < 50; i++) {
+        const value = data[i * 2] / 255;
+        const x = width/2 + Math.cos(step * i) * (value * width/3);
+        const y = height/2 + Math.sin(step * i) * (value * height/3);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${i * 7.2}, 100%, 50%)`;
+        ctx.fill();
+    }
+}
+
+function drawSpectralCascade(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const layers = 10;
+    const layerHeight = height / layers;
+    
+    for (let l = 0; l < layers; l++) {
+        ctx.beginPath();
+        ctx.moveTo(0, height - (l * layerHeight));
+        
+        for (let i = 0; i < width; i++) {
+            const dataIndex = Math.floor((i / width) * data.length);
+            const value = (data[dataIndex] / 255) * layerHeight;
+            ctx.lineTo(i, height - (l * layerHeight) - value);
+        }
+        
+        ctx.strokeStyle = `hsla(${l * 36}, 100%, 50%, ${1 - l/layers})`;
+        ctx.stroke();
+    }
+}
+
+function drawTimbral(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const brightnessSum = data.reduce((acc, val) => acc + val, 0);
+    const brightness = brightnessSum / data.length;
+    
+    ctx.fillStyle = `hsl(${brightness}, 100%, 50%)`;
+    ctx.fillRect(0, 0, width, height);
+    
+    const cellSize = 20;
+    for (let x = 0; x < width; x += cellSize) {
+        for (let y = 0; y < height; y += cellSize) {
+            const value = data[(x + y) % data.length] / 255;
+            ctx.fillStyle = `rgba(0, 0, 0, ${value})`;
+            ctx.fillRect(x, y, cellSize * value, cellSize * value);
+        }
+    }
+}
+
+function drawAttackTransients(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    let previousValue = 0;
+    ctx.beginPath();
+    ctx.strokeStyle = '#00ff94';
+    
+    for (let i = 0; i < data.length; i++) {
+        const x = (i / data.length) * width;
+        const currentValue = data[i] / 255;
+        const derivative = currentValue - previousValue;
+        
+        if (derivative > 0.1) {
+            ctx.moveTo(x, height);
+            ctx.lineTo(x, height * (1 - derivative * 5));
+        }
+        previousValue = currentValue;
+    }
+    ctx.stroke();
+}
+
+function drawAmplitudeModulation(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const centerY = height / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    
+    for (let i = 0; i < width; i++) {
+        const dataIndex = Math.floor((i / width) * data.length);
+        const value = data[dataIndex] / 255;
+        const y = centerY + Math.sin(i * 0.1) * value * height/3;
+        ctx.lineTo(i, y);
+    }
+    
+    ctx.strokeStyle = 'rgba(0, 255, 148, 0.5)';
+    ctx.stroke();
+}
+
+function drawCentroid(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const centroid = data.reduce((acc, val, i) => acc + (val * i), 0) / 
+                     data.reduce((acc, val) => acc + val, 0);
+    
+    ctx.beginPath();
+    ctx.moveTo(0, height/2);
+    ctx.lineTo(width, height/2);
+    ctx.strokeStyle = '#00ff94';
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.arc(centroid/data.length * width, height/2, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#00e5ff';
+    ctx.fill();
+}
+
+function drawRhythm(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    ctx.strokeStyle = '#00ff94';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    for (let i = 0; i < 16; i++) {
+        const x = (i / 16) * width;
+        const value = data[i * 8] / 255;
+        ctx.lineTo(x, height - (value * height));
+    }
+    
+    ctx.stroke();
+}
+
+function drawHarmonics(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const harmonics = 8;
+    const barWidth = width / harmonics;
+    
+    for (let i = 0; i < harmonics; i++) {
+        const value = data[i * 16] / 255;
+        ctx.fillStyle = `hsl(${i * 45}, 100%, 50%)`;
+        ctx.fillRect(i * barWidth, height - (value * height), barWidth - 2, value * height);
+    }
+}
+
+function drawEnergy(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const energy = data.reduce((acc, val) => acc + val, 0) / data.length;
+    const gradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, energy);
+    
+    gradient.addColorStop(0, '#00ff94');
+    gradient.addColorStop(1, 'transparent');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+}
+
+function drawTempo(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const tempo = data.slice(0, 10).reduce((acc, val) => acc + val, 0) / 10;
+    const angle = (tempo / 255) * Math.PI * 2;
+    
+    ctx.beginPath();
+    ctx.arc(width/2, height/2, Math.min(width, height)/3, 0, angle);
+    ctx.strokeStyle = '#00ff94';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+}
+
+function drawDynamics(ctx, data) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min;
+    
+    ctx.fillStyle = '#00ff94';
+    ctx.fillRect(0, height - (range/255 * height), width, range/255 * height);
+}
+
+</script>
+</body></html>
