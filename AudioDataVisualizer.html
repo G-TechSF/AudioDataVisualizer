@@ -1,659 +1,1070 @@
-<html><head><base href="." /><title>AudioDataVisualizer</title><style>
-body {
-    margin: 0;
-    background: #000;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    min-height: 100vh;
-    overflow: hidden;
-}
-
-.visualizer-container {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(4, 1fr);
-    gap: 20px;
-    padding: 20px;
-    height: 90vh;
-}
-
-.viz-box {
-    background: rgba(0,0,0,0.5);
-    border: 1px solid rgba(0,255,255,0.3);
-    border-radius: 10px;
-    padding: 10px;
-    position: relative;
-    overflow: hidden;
-}
-
-.viz-title {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    font-size: 14px;
-    z-index: 1;
-}
-
-.waveform {
-    width: 100%;
-    height: 100%;
-}
-
-.circle-viz {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.spectrum {
-    display: flex;
-    align-items: flex-end;
-    height: 100%;
-    gap: 2px;
-}
-
-.spectrum-bar {
-    flex: 1;
-    background: linear-gradient(to top, #00ff94, #00e5ff);
-    transition: height 0.05s ease;
-}
-
-#startBtn {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(45deg, #00ff94, #00e5ff);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 25px;
-    color: black;
-    font-weight: bold;
-    cursor: pointer;
-    z-index: 100;
-}
-
-.key-display {
-    font-size: 24px;
-    text-align: center;
-    line-height: 1.5;
-}
-
-</style></head><body>
-<button id="startBtn">Start Analysis</button>
-<div class="visualizer-container">
-    <div class="viz-box">
-        <div class="viz-title">Waveform</div>
-        <canvas id="waveformCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Frequency Spectrum</div>
-        <div id="spectrum" class="spectrum"></div>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Beat Detection</div>
-        <canvas id="beatCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Pitch Circle</div>
-        <div class="circle-viz">
-            <canvas id="pitchCanvas"></canvas>
+<html><head><base href="."><title>AudioDataVisualizer</title><style>
+            body {
+                margin: 0;
+                background: #111;
+                color: #fff;
+                font-family: Arial, sans-serif;
+                min-height: 100vh;
+                overflow: hidden;
+            }
+            
+            /* Update the controls styling */
+            .controls {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                align-items: center;
+                justify-content: center;
+                background: rgba(17,17,17,0.95);
+                padding: 15px;
+                z-index: 100;
+            }
+            
+            /* Add media query for mobile devices */
+            @media (max-width: 768px) {
+                #sourceSelect {
+                    display: none;
+                }
+                
+                .controls {
+                    padding: 10px;
+                    gap: 10px;
+                }
+                
+                .sensitivity-control {
+                    font-size: 14px;
+                }
+                
+                #gainControl {
+                    width: 100px;
+                }
+                
+                #startBtn {
+                    min-width: 100px;
+                    margin: 0;
+                }
+            }
+            
+            /* Update visualizer container to account for controls height */
+            .visualizer-container {
+                margin-top: 70px;
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                grid-auto-rows: 200px;
+                gap: 20px;
+                padding: 20px;
+                height: calc(90vh - 70px);
+                overflow-y: auto;
+            }
+            
+            .viz-box {
+                background: linear-gradient(45deg, rgba(0,0,0,0.6), rgba(0,0,0,0.8));
+                border: 2px solid rgba(0,255,255,0.3);
+                box-shadow: 0 0 20px rgba(0,255,148,0.4);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .viz-title {
+                position: absolute;
+                top: 5px;
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 14px;
+                text-align: center;
+                z-index: 1;
+                color: #00ff94;
+                pointer-events: none;
+                text-shadow: 0 0 5px black;
+                white-space: nowrap;
+            }
+            
+            canvas {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            
+            .circle-viz {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            
+            .spectrum {
+                display: flex;
+                align-items: flex-end;
+                height: 100%;
+                gap: 2px;
+            }
+            
+            .spectrum-bar {
+                flex: 1;
+                background: linear-gradient(to top, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+                transition: height 0.05s ease;
+            }
+            
+            .control-item {
+                background: linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+                border: none;
+                padding: 8px 15px;
+                border-radius: 25px;
+                color: white;
+                text-shadow: 0 0 5px black;
+                font-weight: bold;
+                cursor: pointer;
+                height: 35px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                transition: background 0.3s;
+            }
+            
+            .control-item:hover {
+                background: linear-gradient(45deg, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            }
+            
+            #startBtn {
+                background: linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+                border: none;
+                padding: 8px 15px;
+                border-radius: 25px;
+                color: white;
+                text-shadow: 0 0 5px black;
+                font-weight: bold;
+                cursor: pointer;
+                height: 35px;
+                position: static;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                transition: background 0.3s;
+            }
+            
+            #startBtn:hover {
+                background: linear-gradient(45deg, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            }
+            
+            .sensitivity-control {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                color: white;
+                white-space: nowrap;
+            }
+            
+            #gainControl {
+                width: 150px;
+                cursor: pointer;
+            }
+            
+            #gainValue {
+                min-width: 40px;
+            }
+            
+            #sourceSelect {
+                padding: 8px 15px;
+                border-radius: 25px;
+                background: linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+                border: none;
+                color: black;
+                cursor: pointer;
+                font-weight: bold;
+                height: 35px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                transition: background 0.3s;
+            }
+            
+            #sourceSelect:hover {
+                background: linear-gradient(45deg, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            }
+            
+            .key-display {
+                font-size: 24px;
+                text-align: center;
+                line-height: 1.5;
+                color: #00ff94;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
+            
+            .raw-data {
+                position: absolute;
+                bottom: 5px;
+                right: 5px;
+                background: rgba(0,0,0,0.6);
+                padding: 3px 6px;
+                border-radius: 3px;
+                font-size: 12px;
+                font-family: monospace;
+                color: white;
+                text-shadow: 0 0 5px black;
+            }
+        </style></head><body>
+        <div class="controls">
+            <button id="startBtn">Start Analysis</button>
+            <select id="sourceSelect" class="control-item">
+                <option value="">Select Input Source</option>
+            </select>
+            <div class="sensitivity-control">
+                <label for="gainControl">Input Sensitivity:</label>
+                <input type="range" id="gainControl" min="50" max="300" value="100" class="control-item">
+                <span id="gainValue">100%</span>
+            </div>
         </div>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Volume Levels</div>
-        <canvas id="volumeCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Spectral Centroid</div>
-        <canvas id="centroidCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Key Detection</div>
-        <div class="key-display" id="keyDisplay"></div>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Rhythm Pattern</div>
-        <canvas id="rhythmCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Harmonic Content</div>
-        <canvas id="harmonicCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Energy Distribution</div>
-        <canvas id="energyCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Tempo Analysis</div>
-        <canvas id="tempoCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Dynamic Range</div>
-        <canvas id="dynamicCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Phase Correlation</div>
-        <canvas id="phaseCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Stereo Field</div>
-        <canvas id="stereoCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Frequency Velocity</div>
-        <canvas id="velocityCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Harmonic Flow</div>
-        <canvas id="flowCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Spectral Cascade</div>
-        <canvas id="cascadeCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Timbral Space</div>
-        <canvas id="timbralCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Attack Transients</div>
-        <canvas id="attackCanvas"></canvas>
-    </div>
-    <div class="viz-box">
-        <div class="viz-title">Amplitude Modulation</div>
-        <canvas id="modulationCanvas"></canvas>
-    </div>
-</div>
-
-<script>
-let audioContext;
-let analyser;
-let microphone;
-let isRunning = false;
-const FPS = 60;
-const frameInterval = 1000 / FPS;
-let lastFrameTime = 0;
-
-// Create spectrum bars
-const spectrumContainer = document.getElementById('spectrum');
-const BARS = 32;
-for (let i = 0; i < BARS; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'spectrum-bar';
-    spectrumContainer.appendChild(bar);
-}
-
-// Initialize all canvases
-const canvasIds = ['waveformCanvas', 'beatCanvas', 'pitchCanvas', 'volumeCanvas', 
-                   'centroidCanvas', 'rhythmCanvas', 'harmonicCanvas', 'energyCanvas', 
-                   'tempoCanvas', 'dynamicCanvas', 'phaseCanvas', 'stereoCanvas',
-                   'velocityCanvas', 'flowCanvas', 'cascadeCanvas', 'timbralCanvas',
-                   'attackCanvas', 'modulationCanvas'];
-const canvases = {};
-const contexts = {};
-
-canvasIds.forEach(id => {
-    canvases[id] = document.getElementById(id);
-    contexts[id] = canvases[id].getContext('2d');
-    resizeCanvas(canvases[id]);
-});
-
-function resizeCanvas(canvas) {
-    const container = canvas.parentElement;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-}
-
-window.addEventListener('resize', () => {
-    canvasIds.forEach(id => resizeCanvas(canvases[id]));
-});
-
-document.getElementById('startBtn').addEventListener('click', async () => {
-    if (isRunning) {
-        stopAnalysis();
-    } else {
-        await startAnalysis();
-    }
-});
-
-async function startAnalysis() {
-    try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
+        <div class="visualizer-container">
+            <div class="viz-box">
+                <div class="viz-title">Waveform</div>
+                <canvas id="waveformCanvas"></canvas>
+                <div class="raw-data" id="waveformData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Frequency Spectrum</div>
+                <div id="spectrum" class="spectrum"></div>
+                <div class="raw-data" id="spectrumData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Beat Detection</div>
+                <canvas id="beatCanvas"></canvas>
+                <div class="raw-data" id="beatData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Pitch Circle</div>
+                <div class="circle-viz">
+                    <canvas id="pitchCanvas"></canvas>
+                </div>
+                <div class="raw-data" id="pitchData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Volume Levels</div>
+                <canvas id="volumeCanvas"></canvas>
+                <div class="raw-data" id="volumeData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Spectral Centroid</div>
+                <canvas id="centroidCanvas"></canvas>
+                <div class="raw-data" id="centroidData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Key Detection</div>
+                <div class="key-display" id="keyDisplay">C</div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Rhythm Pattern</div>
+                <canvas id="rhythmCanvas"></canvas>
+                <div class="raw-data" id="rhythmData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Harmonic Content</div>
+                <canvas id="harmonicCanvas"></canvas>
+                <div class="raw-data" id="harmonicData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Energy Distribution</div>
+                <canvas id="energyCanvas"></canvas>
+                <div class="raw-data" id="energyData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Tempo Analysis</div>
+                <canvas id="tempoCanvas"></canvas>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Dynamic Range</div>
+                <canvas id="dynamicCanvas"></canvas>
+                <div class="raw-data" id="dynamicData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Phase Correlation</div>
+                <canvas id="phaseCanvas"></canvas>
+                <div class="raw-data" id="phaseData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Stereo Field</div>
+                <canvas id="stereoCanvas"></canvas>
+                <div class="raw-data" id="stereoData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Frequency Velocity</div>
+                <canvas id="velocityCanvas"></canvas>
+                <div class="raw-data" id="velocityData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Harmonic Flow</div>
+                <canvas id="flowCanvas"></canvas>
+                <div class="raw-data" id="flowData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Spectral Cascade</div>
+                <canvas id="cascadeCanvas"></canvas>
+                <div class="raw-data" id="cascadeData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Timbral Space</div>
+                <canvas id="timbralCanvas"></canvas>
+                <div class="raw-data" id="timbralData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Attack Transients</div>
+                <canvas id="attackCanvas"></canvas>
+                <div class="raw-data" id="attackData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Amplitude Modulation</div>
+                <canvas id="modulationCanvas"></canvas>
+                <div class="raw-data" id="modulationData"></div>
+            </div>
+            <div class="viz-box">
+                <div class="viz-title">Spectral Fireworks</div>
+                <canvas id="fireworksCanvas"></canvas>
+                <div class="raw-data" id="fireworksData"></div>
+            </div>
+        </div>
         
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        microphone = audioContext.createMediaStreamSource(stream);
-        microphone.connect(analyser);
+        <script>
+        let audioContext;
+        let analyser;
+        let microphone;
+        let gainNode;
+        let currentStream;
+        let availableDevices = [];
+        let isRunning = false;
+        const FPS = 60;
         
-        isRunning = true;
-        document.getElementById('startBtn').textContent = 'Stop Analysis';
-        requestAnimationFrame(analyze);
-    } catch (error) {
-        console.error('Error accessing microphone:', error);
-    }
-}
-
-function stopAnalysis() {
-    if (microphone) {
-        microphone.disconnect();
-    }
-    if (audioContext) {
-        audioContext.close();
-    }
-    isRunning = false;
-    document.getElementById('startBtn').textContent = 'Start Analysis';
-}
-
-function analyze(timestamp) {
-    if (!isRunning) return;
-    
-    if (timestamp - lastFrameTime < frameInterval) {
-        requestAnimationFrame(analyze);
-        return;
-    }
-    
-    lastFrameTime = timestamp;
-
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const timeDataArray = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(dataArray);
-    analyser.getByteTimeDomainData(timeDataArray);
-
-    // Update spectrum bars
-    const spectrumBars = document.getElementsByClassName('spectrum-bar');
-    for (let i = 0; i < BARS; i++) {
-        const value = dataArray[i * 2];
-        const height = (value / 255) * 100;
-        spectrumBars[i].style.height = height + '%';
-    }
-
-    // Draw waveform
-    drawWaveform(contexts.waveformCanvas, timeDataArray);
-    
-    // Draw beat detection
-    drawBeat(contexts.beatCanvas, dataArray);
-    
-    // Draw pitch visualization
-    drawPitch(contexts.pitchCanvas, dataArray);
-    
-    // Draw volume levels
-    drawVolume(contexts.volumeCanvas, timeDataArray);
-    
-    // Update key detection
-    updateKeyDisplay(dataArray);
-    
-    // Draw other visualizations
-    drawCentroid(contexts.centroidCanvas, dataArray);
-    drawRhythm(contexts.rhythmCanvas, timeDataArray);
-    drawHarmonics(contexts.harmonicCanvas, dataArray);
-    drawEnergy(contexts.energyCanvas, dataArray);
-    drawTempo(contexts.tempoCanvas, dataArray);
-    drawDynamics(contexts.dynamicCanvas, timeDataArray);
-    
-    // New visualizations
-    drawPhase(contexts.phaseCanvas, timeDataArray);
-    drawStereo(contexts.stereoCanvas, dataArray);
-    drawVelocity(contexts.velocityCanvas, dataArray);
-    drawHarmonicFlow(contexts.flowCanvas, dataArray);
-    drawSpectralCascade(contexts.cascadeCanvas, dataArray);
-    drawTimbral(contexts.timbralCanvas, dataArray);
-    drawAttackTransients(contexts.attackCanvas, timeDataArray);
-    drawAmplitudeModulation(contexts.modulationCanvas, timeDataArray);
-
-    requestAnimationFrame(analyze);
-}
-
-function drawWaveform(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    ctx.beginPath();
-    ctx.strokeStyle = '#00ff94';
-    ctx.lineWidth = 2;
-    
-    const sliceWidth = width / data.length;
-    let x = 0;
-    
-    for (let i = 0; i < data.length; i++) {
-        const v = data[i] / 128.0;
-        const y = (v * height) / 2;
+        const canvases = {};
+        const contexts = {};
         
-        if (i === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
-        x += sliceWidth;
-    }
-    
-    ctx.stroke();
-}
-
-function drawBeat(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const bassEnergy = data.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
-    const radius = (bassEnergy / 255) * Math.min(width, height) / 2;
-    
-    ctx.beginPath();
-    ctx.arc(width/2, height/2, radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0, 255, 148, ${bassEnergy/255})`;
-    ctx.fill();
-}
-
-function drawPitch(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const maxRadius = Math.min(width, height) / 2;
-    
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const value = data[i * 4] / 255;
-        const radius = value * maxRadius;
+        let energyHistory = [];
+        const energyHistorySize = 43; // number of frames to keep
+        const beatThreshold = 1.3; // threshold factor for beat detection
+        let lastRMS = 0;
+        let lastTempoUpdateTime = 0;
+        let currentTempo = 0;
+        let beatTimes = [];
+        let lastBeatTime = 0;
         
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
+        // Create spectrum bars
+        document.addEventListener('DOMContentLoaded', function() {
         
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = `hsl(${i * 30}, 100%, 50%)`;
-        ctx.fill();
-    }
-}
-
-function drawVolume(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const rms = Math.sqrt(data.reduce((acc, val) => acc + (val * val), 0) / data.length);
-    const volume = rms / 128.0;
-    
-    ctx.fillStyle = `hsl(${volume * 120}, 100%, 50%)`;
-    ctx.fillRect(0, height - (volume * height), width, volume * height);
-}
-
-function updateKeyDisplay(data) {
-    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const maxEnergy = Math.max(...Array.from(data.slice(0, 12)));
-    const keyIndex = Array.from(data.slice(0, 12)).indexOf(maxEnergy);
-    
-    document.getElementById('keyDisplay').textContent = notes[keyIndex];
-}
-
-// New visualization functions
-function drawPhase(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const phaseData = new Float32Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-        phaseData[i] = Math.atan2(data[i] - 128, i);
-    }
-    
-    ctx.beginPath();
-    ctx.strokeStyle = '#00ff94';
-    for (let i = 0; i < phaseData.length; i++) {
-        const x = (i / phaseData.length) * width;
-        const y = height/2 + Math.sin(phaseData[i]) * height/3;
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-}
-
-function drawStereo(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 4;
-    
-    for (let i = 0; i < data.length; i += 2) {
-        const angle = (i / data.length) * Math.PI * 2;
-        const value = data[i] / 255;
+            const spectrumContainer = document.getElementById('spectrum');
+            const BARS = 32;
+            for (let i = 0; i < BARS; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'spectrum-bar';
+                spectrumContainer.appendChild(bar);
+            }
         
-        ctx.beginPath();
-        ctx.arc(width/2, centerY, radius * value, angle, angle + 0.1);
-        ctx.strokeStyle = `hsl(${i}, 100%, 50%)`;
-        ctx.stroke();
-    }
-}
-
-function drawVelocity(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const particles = [];
-    for (let i = 0; i < 20; i++) {
-        const value = data[i * 4] / 255;
-        particles.push({
-            x: width/2 + Math.cos(i) * value * width/3,
-            y: height/2 + Math.sin(i) * value * height/3,
-            size: value * 10
+            // Initialize all canvases
+            const canvasIds = ['waveformCanvas', 'beatCanvas', 'pitchCanvas', 'volumeCanvas', 
+                           'centroidCanvas', 'rhythmCanvas', 'harmonicCanvas', 'energyCanvas', 
+                           'tempoCanvas', 'dynamicCanvas', 'phaseCanvas', 'stereoCanvas',
+                           'velocityCanvas', 'flowCanvas', 'cascadeCanvas', 'timbralCanvas',
+                           'attackCanvas', 'modulationCanvas', 'fireworksCanvas'];
+            
+            canvasIds.forEach(id => {
+                canvases[id] = document.getElementById(id);
+                if (canvases[id]) {
+                    contexts[id] = canvases[id].getContext('2d');
+                    resizeCanvas(canvases[id]);
+                } else {
+                    console.warn(`Canvas with id '${id}' not found.`);
+                }
+            });
+        
+            window.addEventListener('resize', () => {
+                canvasIds.forEach(id => {
+                    if (canvases[id]) {
+                        resizeCanvas(canvases[id]);
+                    }
+                });
+            });
+        
+            document.getElementById('startBtn').addEventListener('click', async () => {
+                if (isRunning) {
+                    stopAnalysis();
+                } else {
+                    await startAnalysis();
+                }
+            });
+        
+            // Call enumerateDevices when the page loads
+            (async () => {
+                try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true });
+                    await enumerateDevices();
+                } catch (error) {
+                    console.error('Error getting initial audio permissions:', error);
+                }
+            })();
+        
         });
-    }
-    
-    particles.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ff94';
-        ctx.fill();
-    });
-}
-
-function drawHarmonicFlow(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const step = Math.PI * 2 / 50;
-    for (let i = 0; i < 50; i++) {
-        const value = data[i * 2] / 255;
-        const x = width/2 + Math.cos(step * i) * (value * width/3);
-        const y = height/2 + Math.sin(step * i) * (value * height/3);
         
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `hsl(${i * 7.2}, 100%, 50%)`;
-        ctx.fill();
-    }
-}
-
-function drawSpectralCascade(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const layers = 10;
-    const layerHeight = height / layers;
-    
-    for (let l = 0; l < layers; l++) {
-        ctx.beginPath();
-        ctx.moveTo(0, height - (l * layerHeight));
-        
-        for (let i = 0; i < width; i++) {
-            const dataIndex = Math.floor((i / width) * data.length);
-            const value = (data[dataIndex] / 255) * layerHeight;
-            ctx.lineTo(i, height - (l * layerHeight) - value);
+        function resizeCanvas(canvas) {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
         }
         
-        ctx.strokeStyle = `hsla(${l * 36}, 100%, 50%, ${1 - l/layers})`;
-        ctx.stroke();
-    }
-}
-
-function drawTimbral(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const brightnessSum = data.reduce((acc, val) => acc + val, 0);
-    const brightness = brightnessSum / data.length;
-    
-    ctx.fillStyle = `hsl(${brightness}, 100%, 50%)`;
-    ctx.fillRect(0, 0, width, height);
-    
-    const cellSize = 20;
-    for (let x = 0; x < width; x += cellSize) {
-        for (let y = 0; y < height; y += cellSize) {
-            const value = data[(x + y) % data.length] / 255;
-            ctx.fillStyle = `rgba(0, 0, 0, ${value})`;
-            ctx.fillRect(x, y, cellSize * value, cellSize * value);
-        }
-    }
-}
-
-function drawAttackTransients(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    let previousValue = 0;
-    ctx.beginPath();
-    ctx.strokeStyle = '#00ff94';
-    
-    for (let i = 0; i < data.length; i++) {
-        const x = (i / data.length) * width;
-        const currentValue = data[i] / 255;
-        const derivative = currentValue - previousValue;
+        // Analyze function
+        async function analyze() {
+            if (!isRunning) return;
+            
+            if (!analyze.dataArray) {
+                analyze.dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyze.timeDataArray = new Uint8Array(analyser.fftSize);
+            }
+            
+            analyser.getByteFrequencyData(analyze.dataArray);
+            analyser.getByteTimeDomainData(analyze.timeDataArray);
+            
+            const dataArray = analyze.dataArray;
+            const timeDataArray = analyze.timeDataArray;
+            
+            // Update spectrum bars
+            const spectrumBars = document.getElementsByClassName('spectrum-bar');
+            for (let i = 0; i < spectrumBars.length; i++) {
+                const value = dataArray[i * Math.floor(dataArray.length / spectrumBars.length)];
+                spectrumBars[i].style.height = ((value / 255) * 100) + '%';
+            }
         
-        if (derivative > 0.1) {
-            ctx.moveTo(x, height);
-            ctx.lineTo(x, height * (1 - derivative * 5));
+            // Update all visualizations every frame for smoother animation
+            drawWaveform(contexts.waveformCanvas, timeDataArray);
+            drawBeat(contexts.beatCanvas, timeDataArray);
+            drawPitch(contexts.pitchCanvas, dataArray);
+            drawVolume(contexts.volumeCanvas, timeDataArray);
+            drawCentroid(contexts.centroidCanvas, dataArray);
+            drawRhythm(contexts.rhythmCanvas, dataArray);
+            drawHarmonic(contexts.harmonicCanvas, dataArray);
+            drawEnergy(contexts.energyCanvas, dataArray);
+            drawTempo(contexts.tempoCanvas);
+            drawDynamic(contexts.dynamicCanvas, timeDataArray);
+            drawPhase(contexts.phaseCanvas, dataArray);
+            drawStereo(contexts.stereoCanvas, dataArray);
+            drawVelocity(contexts.velocityCanvas, dataArray);
+            drawFlow(contexts.flowCanvas, dataArray);
+            drawCascade(contexts.cascadeCanvas, dataArray);
+            drawTimbral(contexts.timbralCanvas, dataArray);
+            drawAttack(contexts.attackCanvas, timeDataArray);
+            drawModulation(contexts.modulationCanvas, dataArray);
+            drawFireworks(contexts.fireworksCanvas, dataArray);
+            
+            // Key Detection
+            detectKey(dataArray);
+            
+            requestAnimationFrame(analyze);
         }
-        previousValue = currentValue;
-    }
-    ctx.stroke();
-}
-
-function drawAmplitudeModulation(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const centerY = height / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    
-    for (let i = 0; i < width; i++) {
-        const dataIndex = Math.floor((i / width) * data.length);
-        const value = data[dataIndex] / 255;
-        const y = centerY + Math.sin(i * 0.1) * value * height/3;
-        ctx.lineTo(i, y);
-    }
-    
-    ctx.strokeStyle = 'rgba(0, 255, 148, 0.5)';
-    ctx.stroke();
-}
-
-function drawCentroid(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const centroid = data.reduce((acc, val, i) => acc + (val * i), 0) / 
-                     data.reduce((acc, val) => acc + val, 0);
-    
-    ctx.beginPath();
-    ctx.moveTo(0, height/2);
-    ctx.lineTo(width, height/2);
-    ctx.strokeStyle = '#00ff94';
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.arc(centroid/data.length * width, height/2, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#00e5ff';
-    ctx.fill();
-}
-
-function drawRhythm(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    ctx.strokeStyle = '#00ff94';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    
-    for (let i = 0; i < 16; i++) {
-        const x = (i / 16) * width;
-        const value = data[i * 8] / 255;
-        ctx.lineTo(x, height - (value * height));
-    }
-    
-    ctx.stroke();
-}
-
-function drawHarmonics(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const harmonics = 8;
-    const barWidth = width / harmonics;
-    
-    for (let i = 0; i < harmonics; i++) {
-        const value = data[i * 16] / 255;
-        ctx.fillStyle = `hsl(${i * 45}, 100%, 50%)`;
-        ctx.fillRect(i * barWidth, height - (value * height), barWidth - 2, value * height);
-    }
-}
-
-function drawEnergy(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const energy = data.reduce((acc, val) => acc + val, 0) / data.length;
-    const gradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, energy);
-    
-    gradient.addColorStop(0, '#00ff94');
-    gradient.addColorStop(1, 'transparent');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-}
-
-function drawTempo(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const tempo = data.slice(0, 10).reduce((acc, val) => acc + val, 0) / 10;
-    const angle = (tempo / 255) * Math.PI * 2;
-    
-    ctx.beginPath();
-    ctx.arc(width/2, height/2, Math.min(width, height)/3, 0, angle);
-    ctx.strokeStyle = '#00ff94';
-    ctx.lineWidth = 10;
-    ctx.stroke();
-}
-
-function drawDynamics(ctx, data) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    
-    const min = Math.min(...data);
-    const max = Math.max(...data);
-    const range = max - min;
-    
-    ctx.fillStyle = '#00ff94';
-    ctx.fillRect(0, height - (range/255 * height), width, range/255 * height);
-}
-
-</script>
-</body></html>
+        
+        // Function to enumerate devices
+        async function enumerateDevices() {
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const sourceSelect = document.getElementById('sourceSelect');
+            
+            if (isMobile) {
+                sourceSelect.style.display = 'none';
+                return;
+            }
+            
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            sourceSelect.innerHTML = '<option value="">Select Input Source</option>';
+            
+            devices.forEach(device => {
+                if (device.kind === 'audioinput') {
+                    availableDevices.push(device);
+                    sourceSelect.innerHTML += `<option value="${device.deviceId}">${device.label || 'Microphone ' + availableDevices.length}</option>`;
+                }
+            });
+        }
+        
+        document.getElementById('sourceSelect').addEventListener('change', async (e) => {
+            if (isRunning) {
+                await stopAnalysis();
+                await startAnalysis(e.target.value);
+            }
+        });
+        
+        document.getElementById('gainControl').addEventListener('input', (e) => {
+            if (gainNode) {
+                const gain = parseFloat(e.target.value) / 100;
+                gainNode.gain.value = gain;
+                document.getElementById('gainValue').textContent = `${e.target.value}%`;
+            }
+        });
+        
+        // Stop Analysis Function
+        function stopAnalysis() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            isRunning = false;
+            document.getElementById('startBtn').textContent = 'Start Analysis';
+        }
+        
+        // Start Analysis Function
+        async function startAnalysis(sourceId = '') {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                analyser = audioContext.createAnalyser();
+                gainNode = audioContext.createGain();
+                
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.85;
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        deviceId: sourceId ? { exact: sourceId } : undefined,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+                
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                currentStream = stream;
+                
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(gainNode);
+                gainNode.connect(analyser);
+                
+                const gainControl = document.getElementById('gainControl');
+                gainNode.gain.value = parseFloat(gainControl.value) / 100;
+                
+                isRunning = true;
+                document.getElementById('startBtn').textContent = 'Stop Analysis';
+                
+                requestAnimationFrame(analyze);
+            } catch (error) {
+                console.error('Error accessing audio source:', error);
+                alert('Error accessing audio source. Please ensure you have granted necessary permissions.');
+            }
+        }
+        
+        function drawWaveform(ctx, timeDataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgb(0, 255, 148)';
+            ctx.beginPath();
+        
+            const sliceWidth = width * 1.0 / timeDataArray.length;
+            let x = 0;
+        
+            for(let i = 0; i < timeDataArray.length; i++) {
+                const v = timeDataArray[i] / 128.0;
+                const y = v * height/2;
+        
+                if(i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+        
+                x += sliceWidth;
+            }
+            ctx.lineTo(width, height/2);
+            ctx.stroke();
+        
+            // Calculate RMS
+            let sum = 0;
+            for(let i = 0; i < timeDataArray.length; i++) {
+                let val = (timeDataArray[i] - 128) / 128;
+                sum += val * val;
+            }
+            const rms = Math.sqrt(sum / timeDataArray.length);
+            const rawDataDiv = document.getElementById('waveformData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'RMS: ' + rms.toFixed(2);
+            }
+        }
+        
+        function drawBeat(ctx, timeDataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            // Calculate instant energy
+            let instantEnergy = 0;
+            for(let i = 0; i < timeDataArray.length; i++) {
+                let val = (timeDataArray[i] - 128) / 128; // normalize between -1 and 1
+                instantEnergy += val * val;
+            }
+            instantEnergy = instantEnergy / timeDataArray.length;
+        
+            energyHistory.push(instantEnergy);
+            if(energyHistory.length > energyHistorySize){
+                energyHistory.shift(); // Remove the oldest energy value
+            }
+        
+            let currentTime = audioContext.currentTime;
+        
+            // Calculate average local energy
+            let localEnergy = energyHistory.reduce((a,b) => a + b, 0) / energyHistory.length;
+        
+            // Compute variance
+            let variance = energyHistory.reduce((a,b) => a + (b - localEnergy)*(b - localEnergy), 0) / energyHistory.length;
+            let c = (-0.0025714 * variance) + 1.5142857; // Parameters adjusted for sensitivity
+        
+            if (instantEnergy > c * localEnergy) {
+                // Check if the beat is not within the minimum interval
+                if (!lastBeatTime || (currentTime - lastBeatTime) > 0.3) { // 200 BPM max
+                    // Beat detected
+                    ctx.fillStyle = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                    ctx.beginPath();
+                    ctx.arc(width / 2, height / 2, height / 2, 0, 2 * Math.PI);
+                    ctx.fill();
+        
+                    // Record beat time
+                    beatTimes.push(currentTime);
+                    lastBeatTime = currentTime;
+        
+                    // Keep only recent beats
+                    while (beatTimes.length > 10) {
+                        beatTimes.shift();
+                    }
+                }
+            }
+        
+            const rawDataDiv = document.getElementById('beatData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Energy: ' + instantEnergy.toFixed(4);
+            }
+        }
+        
+        function drawPitch(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            const radius = Math.min(width, height) / 2;
+            ctx.clearRect(0, 0, width, height);
+        
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const numBars = dataArray.length;
+        
+            ctx.save();
+            ctx.translate(centerX, centerY);
+        
+            for (let i = 0; i < numBars; i++) {
+                const value = dataArray[i];
+                const percent = value / 255;
+                const barHeight = radius * percent;
+                const angle = (i / numBars) * 2 * Math.PI;
+        
+                ctx.rotate(angle);
+                ctx.fillStyle = `hsl(${(i / numBars) * 360}, 100%, 50%)`;
+                ctx.fillRect(0, 0, 2, -barHeight);
+            }
+        
+            ctx.restore();
+        
+            const rawDataDiv = document.getElementById('pitchData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Pitch Index: ' + dataArray.indexOf(Math.max(...dataArray));
+            }
+        }
+        
+        function drawVolume(ctx, timeDataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            let sum = 0;
+            for(let i = 0; i < timeDataArray.length; i++) {
+                let val = (timeDataArray[i] - 128) / 128; // normalize between -1 and 1
+                sum += val * val;
+            }
+            const rms = Math.sqrt(sum / timeDataArray.length);
+            const radius = rms * (width / 2) * 1.5;
+        
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, radius, 0, 2 * Math.PI);
+            ctx.fill();
+        
+            const rawDataDiv = document.getElementById('volumeData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Volume: ' + (rms * 100).toFixed(2) + '%';
+            }
+        }
+        
+        function drawCentroid(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+        
+            ctx.clearRect(0, 0, width, height);
+        
+            let numerator = 0;
+            let denominator = 0;
+            dataArray.forEach((amp, freq) => {
+                numerator += freq * amp;
+                denominator += amp;
+            });
+        
+            const centroid = numerator / denominator;
+            const x = (centroid / dataArray.length) * width;
+        
+            ctx.fillStyle = 'cyan';
+            ctx.fillRect(x - 2, 0, 4, height);
+        
+            const rawDataDiv = document.getElementById('centroidData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Centroid: ' + centroid.toFixed(2);
+            }
+        }
+        
+        function drawRhythm(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+        
+            const imageData = ctx.getImageData(1, 0, width - 1, height);
+            ctx.putImageData(imageData, 0, 0);
+        
+            for (let i = 0; i < dataArray.length; i++) {
+                const value = dataArray[i];
+                const y = Math.floor((i / dataArray.length) * height);
+                const hue = (value / 255) * 360;
+                ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                ctx.fillRect(width - 1, height - y, 1, 1);
+            }
+        
+            const rawDataDiv = document.getElementById('rhythmData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Rhythm Data';
+            }
+        }
+        
+        function drawHarmonic(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            const barWidth = (width / dataArray.length) * 2.5;
+            let x = 0;
+        
+            for(let i = 0; i < dataArray.length; i++) {
+                const barHeight = dataArray[i] / 2;
+                ctx.fillStyle = `hsl(${(i / dataArray.length) * 360}, 100%, ${(50 + 50 * Math.cos(i))}% )`;
+                ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+        
+                x += barWidth + 1;
+            }
+        
+            const rawDataDiv = document.getElementById('harmonicData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Harmonic Data';
+            }
+        }
+        
+        function drawEnergy(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            const total = dataArray.reduce((a, b) => a + b);
+            const avg = total / dataArray.length;
+            const barHeight = (avg / 255) * height;
+        
+            ctx.fillStyle = 'orange';
+            ctx.fillRect(0, height - barHeight, width, barHeight);
+        
+            const rawDataDiv = document.getElementById('energyData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Energy: ' + avg.toFixed(2);
+            }
+        }
+        
+        function drawTempo(ctx) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+        
+            ctx.clearRect(0, 0, width, height);
+            ctx.font = 'bold 48px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+        
+            if (beatTimes.length >= 4) {
+                const currentTime = audioContext.currentTime;
+                if (currentTime - lastTempoUpdateTime > 1) { // update every 1 second
+                    // Compute intervals
+                    let intervals = [];
+                    for (let i = 1; i < beatTimes.length; i++) {
+                        let interval = beatTimes[i] - beatTimes[i - 1];
+                        intervals.push(interval);
+                    }
+        
+                    // Filter out intervals that are too short or too long
+                    intervals = intervals.filter(interval => interval > 0.3 && interval < 2); // between 0.3s and 2s
+                    if (intervals.length > 0) {
+                        // Take median interval to reduce effects of outliers
+                        intervals.sort((a, b) => a - b);
+                        let medianInterval = intervals[Math.floor(intervals.length / 2)];
+                        currentTempo = Math.round(60 / medianInterval);
+                    } else {
+                        currentTempo = '--';
+                    }
+                    lastTempoUpdateTime = currentTime;
+                }
+                ctx.fillText(`${currentTempo} BPM`, width / 2, height / 2);
+            } else {
+                ctx.fillText(`-- BPM`, width / 2, height / 2);
+            }
+        }
+        
+        function drawDynamic(ctx, timeDataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            const data = Array.from(timeDataArray).map(v => (v - 128) / 128);
+            const min = Math.min(...data);
+            const max = Math.max(...data);
+            const dynamicRange = max - min; // range between 0 and 2
+        
+            const scaledDynamicRange = dynamicRange / 2; // normalize between 0 and 1
+        
+            ctx.fillStyle = 'purple';
+            ctx.fillRect(0, height - scaledDynamicRange * height, width, scaledDynamicRange * height);
+        
+            const rawDataDiv = document.getElementById('dynamicData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Dynamic Range: ' + (scaledDynamicRange * 100).toFixed(2) + '%';
+            }
+        }
+        
+        function drawPhase(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            const gradient = ctx.createLinearGradient(0, 0, width, height);
+            gradient.addColorStop(0, 'cyan');
+            gradient.addColorStop(0.5, 'magenta');
+            gradient.addColorStop(1, 'yellow');
+        
+            ctx.strokeStyle = gradient;
+            ctx.beginPath();
+            for (let i = 0; i < dataArray.length - 1; i++) {
+                const x = (dataArray[i] / 255) * width;
+                const y = (dataArray[i + 1] / 255) * height;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        
+            const rawDataDiv = document.getElementById('phaseData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Phase Data';
+            }
+        }
+        
+        function drawStereo(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            const barWidth = width / dataArray.length;
+            for (let i = 0; i < dataArray.length / 2; i++) {
+                const leftValue = dataArray[i];
+                const rightValue = dataArray[dataArray.length - i - 1];
+                const leftHeight = (leftValue / 255) * height;
+                const rightHeight = (rightValue / 255) * height;
+        
+                ctx.fillStyle = 'red';
+                ctx.fillRect(i * barWidth, height - leftHeight, barWidth / 2, leftHeight);
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(width - (i + 1) * barWidth + barWidth / 2, height - rightHeight, barWidth / 2, rightHeight);
+            }
+        
+            const rawDataDiv = document.getElementById('stereoData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Stereo Data';
+            }
+        }
+        
+        function drawVelocity(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            for (let i = 0; i < dataArray.length; i++) {
+                const value = dataArray[i];
+                ctx.fillStyle = `hsl(${value}, 100%, 50%)`;
+                ctx.fillRect((i / dataArray.length) * width, height - (value / 255) * height, 2, 2);
+            }
+        
+            const rawDataDiv = document.getElementById('velocityData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Velocity Data';
+            }
+        }
+        
+        function drawFlow(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            const imageData = ctx.getImageData(1, 0, width - 1, height);
+            ctx.putImageData(imageData, 0, 0);
+            const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            ctx.fillStyle = `hsl(${(avg / 255) * 360}, 100%, 50%)`;
+            ctx.fillRect(width - 1, 0, 1, height);
+        
+            const rawDataDiv = document.getElementById('flowData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Flow Data';
+            }
+        }
+        
+        function drawCascade(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            const imageData = ctx.getImageData(0, 0, width, height);
+            ctx.putImageData(imageData, 0, 1);
+            ctx.fillStyle = `hsl(${Math.random() * 60}, 100%, 50%)`; // More red hues
+            dataArray.forEach((value, i) => {
+                const x = (i / dataArray.length) * width;
+                ctx.fillRect(x, 0, width / dataArray.length, (value / 255) * height / 3);
+            });
+        
+            const rawDataDiv = document.getElementById('cascadeData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Cascade Data';
+            }
+        }
+        
+        function drawTimbral(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            let numerator = 0;
+            let denominator = 0;
+            dataArray.forEach((amp, freq) => {
+                numerator += freq * amp;
+                denominator += amp;
+            });
+        
+            const centroid = numerator / denominator;
+            const brightness = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        
+            const x = ((centroid / dataArray.length) - 0.5) * width;
+            const y = ((brightness / 255) - 0.5) * height;
+        
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+        
+            const rawDataDiv = document.getElementById('timbralData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Centroid: ' + centroid.toFixed(2);
+            }
+        }
+        
+        function drawAttack(ctx, timeDataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            let sum = 0;
+            for(let i = 0; i < timeDataArray.length; i++) {
+                let val = (timeDataArray[i] - 128) / 128; // normalize between -1 and 1
+                sum += val * val;
+            }
+            const rms = Math.sqrt(sum / timeDataArray.length);
+        
+            const diff = rms - lastRMS;
+            lastRMS = rms;
+        
+            const threshold = 0.02;
+        
+            if (diff > threshold) {
+                ctx.fillStyle = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                ctx.fillRect(0, 0, width, height);
+            } else {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, width, height);
+            }
+        
+            const rawDataDiv = document.getElementById('attackData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Attack: ' + (diff > threshold ? 'Yes' : 'No');
+            }
+        }
+        
+        function drawModulation(ctx, dataArray) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+        
+            ctx.strokeStyle = 'white';
+            ctx.beginPath();
+            for (let i = 0; i < dataArray.length; i++) {
+                const x = (i / dataArray.length) * width;
+                const y = height / 2 + Math.sin((dataArray[i] / 255) * Math.PI * 2) * height / 2;
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        
+            const rawDataDiv = document.getElementById('modulationData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Modulation Data';
+            }
+        }
+        
+        function detectKey(dataArray) {
+            const keyDisplay = document.getElementById('keyDisplay');
+            const maxIndex = dataArray.indexOf(Math.max(...dataArray));
+            const note = (maxIndex % 12);
+        
+            const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+            keyDisplay.textContent = noteNames[note];
+        }
+        
+        // Initialize Spectral Fireworks canvas
+        function drawFireworks(ctx, data) {  
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            ctx.clearRect(0, 0, width, height);
+            const numParticles = 20;
+        
+            for (let i = 0; i < numParticles; i++) {
+                const value = data[i * Math.floor(data.length / numParticles)];
+                const hue = (i / numParticles) * 360;  
+                const brightness = value / 255;
+        
+                const angle = Math.random() * 2 * Math.PI;
+                const distance = brightness * width / 2;
+                const x = width / 2 + Math.cos(angle) * distance;
+                const y = height / 2 + Math.sin(angle) * distance;
+        
+                const particleSize = (brightness * 20) + 5;
+        
+                ctx.beginPath();
+                ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${brightness})`;
+                ctx.fill();
+            }
+        
+            const rawDataDiv = document.getElementById('fireworksData');
+            if (rawDataDiv) {
+                rawDataDiv.textContent = 'Fireworks Data';
+            }
+        }
+        </script>
+        </body></html>
